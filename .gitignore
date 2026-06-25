@@ -1,0 +1,6 @@
+/target
+**/*.rs.bk
+*.pdb
+
+# Reference source material (the three servers we ported from) — kept local only.
+/sslop

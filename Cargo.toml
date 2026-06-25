@@ -1,0 +1,33 @@
+[workspace]
+resolver = "2"
+members = ["crates/remarkable-core", "crates/remarkable-mcp"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/indexzero/remarkable-mcp.rs"
+authors = ["indexzero"]
+
+# Shared dependency versions. Pinned to versions verified on crates.io 2026-06-25.
+# rmcp 1.8.0 is the official Rust MCP SDK (github.com/modelcontextprotocol/rust-sdk).
+[workspace.dependencies]
+remarkable-core = { path = "crates/remarkable-core" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "signal", "sync", "time"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+futures = "0.3"
+directories = "6"
+tempfile = "3"
+
+[profile.release]
+lto = "thin"
+strip = true

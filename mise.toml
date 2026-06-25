@@ -1,0 +1,37 @@
+# mise tasks for remarkable-mcp (rust-cli-aspects PACKAGING / mise compatibility).
+# Run `mise tasks` to list, `mise run ci` before pushing.
+
+[tools]
+rust = "1.85"
+
+[tasks.build]
+description = "Build the workspace"
+run = "cargo build"
+
+[tasks.test]
+description = "Run the test suite"
+run = "cargo test"
+
+[tasks.lint]
+description = "Run clippy with warnings denied"
+run = "cargo clippy --all-targets -- -D warnings"
+
+[tasks.fmt]
+description = "Format the code"
+run = "cargo fmt"
+
+[tasks.smoke]
+description = "Drive the MCP server over stdio (initialize + tools/list), no network"
+run = "scripts/smoke.sh"
+
+[tasks.ci]
+description = "fmt check + clippy + test (the pre-push gate)"
+run = [
+  "cargo fmt --check",
+  "cargo clippy --all-targets -- -D warnings",
+  "cargo test",
+]
+
+[tasks.start]
+description = "Run the MCP server over stdio"
+run = "cargo run --quiet"
