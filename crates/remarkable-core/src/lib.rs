@@ -18,7 +18,7 @@
 //! The protocol and model are a Rust port that takes the best parts of three
 //! reference servers: lanej (Go — sync protocol, path/tree logic, response
 //! budgeting), wavyrai (Python — root-hash caching, parallel fetch, structured
-//! errors), and SamMorrowDrums (Python — UX/safety ideas). See `sslop/1/*.md`.
+//! errors), and SamMorrowDrums (Python — UX/safety ideas). See `docs/sources/`.
 
 pub mod auth;
 pub mod client;

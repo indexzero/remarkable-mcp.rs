@@ -8,7 +8,7 @@ Claude, VS Code, or any MCP client.
 > best parts of three existing reMarkable MCP servers and fuses them into one:
 > [lanej](https://github.com/lanej) (Go), [SamMorrowDrums](https://github.com/SamMorrowDrums)
 > (Python), and [wavyrai](https://github.com/wavyrai) (Python). The per-project
-> feature teardowns that drove these decisions live in `sslop/1/*.md` (local).
+> feature teardowns that drove these decisions are in [`docs/sources/`](docs/sources/).
 
 ---
 
@@ -165,7 +165,7 @@ recorded here and in [`docs/adr/`](docs/adr/).
 
 ## Roadmap
 
-Staged from the `sslop/1/*.md` synthesis (later = higher value *and* higher risk):
+Staged from the [`docs/sources/`](docs/sources/) synthesis (later = higher value *and* higher risk):
 
 - Write tools (`mkdir`/`move`/`rename`/`delete`) with confirmation gating + annotations.
 - Content extraction (PDF/EPUB text) and `.rm` rendering with PDF fallback.
