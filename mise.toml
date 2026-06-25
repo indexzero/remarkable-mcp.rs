@@ -2,7 +2,7 @@
 # Run `mise tasks` to list, `mise run ci` before pushing.
 
 [tools]
-rust = "1.85"
+rust = "1.88"
 
 [tasks.build]
 description = "Build the workspace"

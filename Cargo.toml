@@ -5,7 +5,7 @@ members = ["crates/remarkable-core", "crates/remarkable-mcp"]
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "MIT"
 repository = "https://github.com/indexzero/remarkable-mcp.rs"
 authors = ["indexzero"]
