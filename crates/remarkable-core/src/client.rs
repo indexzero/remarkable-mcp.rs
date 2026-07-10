@@ -60,6 +60,35 @@ pub struct ClientConfig {
     pub timeout: Duration,
     /// User-Agent header.
     pub user_agent: String,
+    /// Device kind sent at registration (`REMARKABLE_DEVICE_DESC`). This — not a
+    /// free-text name — is what the reMarkable web "devices" view labels the app
+    /// from. Must be one of reMarkable's recognized values (see [`KNOWN_DEVICE_DESCS`]);
+    /// defaults to the current platform so a Mac shows as a Mac app, not "Linux app".
+    pub device_desc: String,
+}
+
+/// The device-kind descriptors the reMarkable cloud recognizes. reMarkable rejects
+/// anything else, and there is **no** free-text custom-name field — the web view
+/// label is derived from this value.
+pub const KNOWN_DEVICE_DESCS: &[&str] = &[
+    "desktop-windows",
+    "desktop-macos",
+    "desktop-linux",
+    "mobile-android",
+    "mobile-ios",
+    "browser-chrome",
+    "remarkable",
+];
+
+/// The platform-appropriate default device descriptor.
+fn default_device_desc() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "desktop-macos"
+    } else if cfg!(target_os = "windows") {
+        "desktop-windows"
+    } else {
+        "desktop-linux"
+    }
 }
 
 impl ClientConfig {
@@ -80,6 +109,7 @@ impl ClientConfig {
             parallel_workers,
             timeout: Duration::from_secs(60),
             user_agent: concat!("remarkable-mcp/", env!("CARGO_PKG_VERSION")).to_string(),
+            device_desc: env_or("REMARKABLE_DEVICE_DESC", default_device_desc()),
         })
     }
 }
@@ -156,6 +186,11 @@ impl CloudClient {
         self.inner.lock().await.tokens.is_registered()
     }
 
+    /// The device-kind descriptor this client registers with (see [`KNOWN_DEVICE_DESCS`]).
+    pub fn device_desc(&self) -> &str {
+        &self.config.device_desc
+    }
+
     /// Current authentication status.
     pub async fn auth_status(&self) -> AuthStatus {
         let inner = self.inner.lock().await;
@@ -173,6 +208,17 @@ impl CloudClient {
     pub async fn register(&self, code: &str) -> Result<()> {
         let code = code.trim().to_lowercase();
         let device_id = uuid::Uuid::new_v4().to_string();
+        let device_desc = self.config.device_desc.as_str();
+
+        // reMarkable rejects unrecognized descriptors; warn early rather than fail opaque.
+        if !KNOWN_DEVICE_DESCS.contains(&device_desc) {
+            tracing::warn!(
+                device_desc,
+                "REMARKABLE_DEVICE_DESC is not a recognized reMarkable device kind; \
+                 registration may be rejected. Known values: {}",
+                KNOWN_DEVICE_DESCS.join(", ")
+            );
+        }
 
         #[derive(Serialize)]
         struct DeviceReq<'a> {
@@ -189,7 +235,7 @@ impl CloudClient {
             .post(&url)
             .json(&DeviceReq {
                 code: &code,
-                device_desc: "desktop-linux",
+                device_desc,
                 device_id: &device_id,
             })
             .send()
@@ -483,5 +529,15 @@ mod tests {
         let cfg = ClientConfig::from_env().unwrap();
         assert!(cfg.parallel_workers >= 1 && cfg.parallel_workers <= 64);
         assert!(cfg.sync_host.starts_with("https://"));
+    }
+
+    #[test]
+    fn default_device_desc_is_recognized_and_platform_appropriate() {
+        // The platform default must be a value reMarkable accepts.
+        let d = default_device_desc();
+        assert!(KNOWN_DEVICE_DESCS.contains(&d), "unknown default: {d}");
+        assert!(d.starts_with("desktop-"));
+        #[cfg(target_os = "macos")]
+        assert_eq!(d, "desktop-macos");
     }
 }

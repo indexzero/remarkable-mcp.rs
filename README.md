@@ -83,6 +83,7 @@ precedence, per rust-cli-aspects CONFIG-AND-STATE).
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `REMARKABLE_TOKEN_PATH` | XDG state dir | Override the token-store path. |
+| `REMARKABLE_DEVICE_DESC` | platform (`desktop-macos`/`-windows`/`-linux`) | Device kind sent at registration; sets the reMarkable web "devices" label. Must be a recognized value (`desktop-*`, `mobile-*`, `browser-chrome`, `remarkable`) — reMarkable has no custom-name field. Only applied at `auth` time. |
 | `REMARKABLE_SYNC_HOST` | `https://internal.cloud.remarkable.com` | Sync API host. |
 | `REMARKABLE_SYNC_ROOT_PATH` | `/sync/v3/root` | Root endpoint (set `/sync/v4/root` to try v4). |
 | `REMARKABLE_PARALLEL_WORKERS` | `8` | Concurrent metadata fetches (clamped 1–64). |

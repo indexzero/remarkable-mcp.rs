@@ -66,13 +66,17 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn run_auth(client: &CloudClient, code: &str) -> anyhow::Result<()> {
-    eprintln!("Registering device with reMarkable cloud…");
+    eprintln!(
+        "Registering with reMarkable cloud as device kind '{}'…",
+        client.device_desc()
+    );
     client
         .register(code)
         .await
         .context("device registration failed")?;
     let status = client.auth_status().await;
     println!("✓ Registered. Device id: {}", status.device_id);
+    println!("  Device kind:      {}", client.device_desc());
     println!("  Tokens stored at: {}", status.token_path);
     println!("  You can now run `remarkable-mcp` (no arguments) as an MCP server.");
     Ok(())
