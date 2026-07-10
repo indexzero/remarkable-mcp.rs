@@ -17,9 +17,12 @@ Claude, VS Code, or any MCP client.
 **v1 is cloud, read-only, and metadata-focused.** It lists, trees, searches, and
 inspects your library. Writing (mkdir/move/delete), content extraction, rendering,
 OCR, and the SSH/USB transports are deliberately **out of scope for v1** and
-tracked on the [roadmap](#roadmap). See [Assumptions](#assumptions--caveats) — the
-cloud protocol is reverse-engineered and the live network path is **not** exercised
-by CI (it requires a real reMarkable account).
+tracked on the [roadmap](#roadmap).
+
+The cloud protocol is reverse-engineered, but the read path is **verified
+end-to-end against a live reMarkable account** (a 41-document library). CI still
+can't exercise the network (it needs a real token), so unit tests cover the
+parsing/logic with fixtures. See [Assumptions](#assumptions--caveats).
 
 ## What you get
 
@@ -149,10 +152,12 @@ tool calls return structured error envelopes rather than crashing.
 These are the decisions a maintainer would otherwise have asked about; they're
 recorded here and in [`docs/adr/`](docs/adr/).
 
-1. **The live cloud path is untested.** No reMarkable token was available, so the
-   network shapes rest on three sources agreeing. Parsing/caching/tree logic is
-   fully unit-tested with fixtures; the HTTP round-trips are not. Treat first
-   real-device use as the integration test.
+1. **The live cloud path is now verified** against a real account (41 documents).
+   The original port of lanej's older code failed with HTTP 400 because today's
+   API requires an `rm-filename` header on `/sync/v3/files/` GETs and uses a
+   single-schema-line index format; both were corrected from SamMorrowDrums' live
+   fix. CI still can't exercise the network (no token), so HTTP round-trips remain
+   fixture-tested only.
 2. **Read-only, cloud-only, metadata-only for v1.** Writes and content/rendering
    are the highest-risk, highest-dependency surfaces (lanej's writes even use a
    *different, deprecated* API than its reads); shipping them untested could
