@@ -8,21 +8,24 @@
 //! * **bounded parallel metadata fetch** — `buffer_unordered` over the index so a
 //!   400-document library lists in one round-trip's worth of wall-clock, not 400.
 //!
-//! ## Protocol (verified against all three reference servers)
+//! ## Protocol (verified against a live account — 41-document library)
 //!
 //! 1. `GET {sync_host}{root_path}` → JSON containing a `hash` (the library root).
-//! 2. `GET {sync_host}/sync/v3/files/{root_hash}` → a line-delimited index;
-//!    lines 1–2 are schema/root metadata, the rest are `hash:gen:uuid:type:size`.
-//! 3. For each entry, `GET .../files/{entry_hash}` → a per-document blob index;
-//!    find the `{uuid}.metadata` line, then `GET .../files/{meta_hash}` → the
-//!    metadata JSON. Only the small `.metadata` blob is fetched, never the page data.
+//! 2. `GET {sync_host}/sync/v3/files/{root_hash}` with header
+//!    `rm-filename: root.docSchema` → a line-delimited index; line 0 is the schema
+//!    version, the rest are `hash:type:id:subfiles:size`.
+//! 3. For each entry, `GET .../files/{entry_hash}` with `rm-filename:
+//!    {id}.docSchema` → a per-document blob index; find the `{uuid}.metadata`
+//!    line, then `GET .../files/{meta_hash}` with `rm-filename: {uuid}.metadata`
+//!    → the metadata JSON. Only the small `.metadata` blob is fetched, never page data.
 //!
-//! ## Untested against live hardware
+//! ## Provenance of the network shapes
 //!
-//! These endpoints/headers are reverse-engineered and cannot be exercised without a
-//! real reMarkable account token. Parsing, caching, and tree logic are unit-tested
-//! with fixtures; the network shapes carry the three sources' mutual agreement as
-//! their evidence. See the PR's "Assumptions" section.
+//! Parsing/caching/tree logic is unit-tested with fixtures. The **`rm-filename`
+//! header** requirement and the **single-schema-line index format** are the parts
+//! lanej's older code got wrong (it returned HTTP 400 against today's API); both
+//! were corrected from SamMorrowDrums' live fix and confirmed end-to-end against a
+//! real reMarkable cloud account.
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -325,9 +328,23 @@ impl CloudClient {
     }
 
     /// Fetch a sync file by hash, returning its body as text.
-    async fn get_file_text(&self, hash: &str, bearer: &str) -> Result<String> {
+    ///
+    /// The current reMarkable sync v3 API **requires** an `rm-filename` header on
+    /// every `/sync/v3/files/{hash}` GET (omitting it returns HTTP 400
+    /// `unexpected 'rm-filename' http header`). The value is the logical name of
+    /// the blob being fetched: `root.docSchema` for the root index,
+    /// `{id}.docSchema` for a per-document blob index, or the blob's own filename
+    /// (e.g. `{uuid}.metadata`) for a leaf file. Verified against SamMorrowDrums'
+    /// live fix (their PR #120).
+    async fn get_file_text(&self, hash: &str, rm_filename: &str, bearer: &str) -> Result<String> {
         let url = format!("{}{}{}", self.config.sync_host, FILES_PATH, hash);
-        let resp = self.http.get(&url).bearer_auth(bearer).send().await?;
+        let resp = self
+            .http
+            .get(&url)
+            .bearer_auth(bearer)
+            .header("rm-filename", rm_filename)
+            .send()
+            .await?;
         let status = resp.status();
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
@@ -362,16 +379,20 @@ impl CloudClient {
             .ok_or_else(|| Error::Malformed("sync root response missing `hash`".into()))
     }
 
-    /// Parse a sync index payload into entries, skipping the two header lines.
+    /// Parse the root sync index into entries.
+    ///
+    /// Format (sync v3 / sync15): line 0 is the schema version, then each line is
+    /// `hash:type:id:subfiles:size`, where `id` is the item's UUID. Ported from
+    /// SamMorrowDrums' `_parse_index` (which skips only the schema line).
     fn parse_index(body: &str) -> Vec<IndexEntry> {
         body.lines()
-            .skip(2)
+            .skip(1)
             .filter_map(|line| {
                 let parts: Vec<&str> = line.split(':').collect();
                 if parts.len() < 5 {
                     return None;
                 }
-                // Validate the UUID field; entries with a non-UUID id are skipped.
+                // Root-level ids are UUIDs; skip anything that isn't one.
                 if uuid::Uuid::parse_str(parts[2]).is_err() {
                     return None;
                 }
@@ -383,13 +404,15 @@ impl CloudClient {
             .collect()
     }
 
-    /// Resolve the `.metadata` blob hash within a per-document blob index.
-    fn find_metadata_hash(blob_index: &str, doc_id: &str) -> Option<String> {
-        let needle = format!("{doc_id}.metadata");
-        for line in blob_index.lines().skip(2) {
+    /// Locate the `.metadata` blob within a per-document blob index, returning its
+    /// `(hash, filename)` — the filename is needed as the `rm-filename` header.
+    /// The blob index shares the root index format (`hash:type:id:subfiles:size`),
+    /// but here `id` is a filename like `{uuid}.metadata`.
+    fn find_metadata_blob(blob_index: &str) -> Option<(String, String)> {
+        for line in blob_index.lines().skip(1) {
             let parts: Vec<&str> = line.split(':').collect();
-            if parts.len() >= 3 && parts[2] == needle {
-                return Some(parts[0].to_string());
+            if parts.len() >= 5 && parts[2].ends_with(".metadata") {
+                return Some((parts[0].to_string(), parts[2].to_string()));
             }
         }
         None
@@ -398,15 +421,23 @@ impl CloudClient {
     /// Fetch and parse one document's metadata, returning `None` for trashed items
     /// or items whose metadata cannot be located/parsed (logged at debug).
     async fn fetch_item(&self, entry: &IndexEntry, bearer: &str) -> Option<Item> {
-        let blob_index = match self.get_file_text(&entry.hash, bearer).await {
+        // The per-document blob index is addressed by `{id}.docSchema`.
+        let blob_filename = format!("{}.docSchema", entry.id);
+        let blob_index = match self
+            .get_file_text(&entry.hash, &blob_filename, bearer)
+            .await
+        {
             Ok(b) => b,
             Err(e) => {
                 tracing::debug!(id = %entry.id, error = %e, "skipping: blob index fetch failed");
                 return None;
             }
         };
-        let meta_hash = Self::find_metadata_hash(&blob_index, &entry.id)?;
-        let meta_text = self.get_file_text(&meta_hash, bearer).await.ok()?;
+        let (meta_hash, meta_name) = Self::find_metadata_blob(&blob_index)?;
+        let meta_text = self
+            .get_file_text(&meta_hash, &meta_name, bearer)
+            .await
+            .ok()?;
         let raw: RawMetadata = match serde_json::from_str(&meta_text) {
             Ok(r) => r,
             Err(e) => {
@@ -436,7 +467,8 @@ impl CloudClient {
             }
         }
 
-        let index_body = self.get_file_text(&root, &bearer).await?;
+        // The root index is addressed by the special name `root.docSchema`.
+        let index_body = self.get_file_text(&root, "root.docSchema", &bearer).await?;
         let entries = Self::parse_index(&index_body);
 
         // Own each entry in the stream (so the per-item future owns its data) and
@@ -474,13 +506,12 @@ mod tests {
     const UUID_B: &str = "22222222-2222-4222-8222-222222222222";
 
     #[test]
-    fn parse_index_skips_headers_and_keeps_valid_entries() {
-        // Real shape: schemaVersion, rootInfo, then `hash:gen:uuid:type:size`.
+    fn parse_index_skips_schema_line_and_keeps_valid_entries() {
+        // sync v3 shape: schema version, then `hash:type:id:subfiles:size`.
         let body = format!(
             "3\n\
-             root:1:0:2:0\n\
-             aaaaaaaa:0:{UUID_A}:80000000:1024\n\
-             bbbbbbbb:0:{UUID_B}:80000000:2048\n"
+             aaaaaaaa:80000000:{UUID_A}:8:1024\n\
+             bbbbbbbb:80000000:{UUID_B}:4:2048\n"
         );
         let entries = CloudClient::parse_index(&body);
         assert_eq!(entries.len(), 2);
@@ -493,10 +524,9 @@ mod tests {
     fn parse_index_drops_malformed_and_non_uuid_lines() {
         let body = format!(
             "3\n\
-             root:1:0:1:0\n\
              short:line\n\
-             cccccccc:0:not-a-uuid:80000000:10\n\
-             dddddddd:0:{UUID_A}:80000000:10\n"
+             cccccccc:80000000:not-a-uuid:1:10\n\
+             dddddddd:80000000:{UUID_A}:1:10\n"
         );
         let entries = CloudClient::parse_index(&body);
         assert_eq!(entries.len(), 1);
@@ -504,23 +534,25 @@ mod tests {
     }
 
     #[test]
-    fn find_metadata_hash_locates_the_metadata_blob() {
-        // Per-doc blob index: schema, root, then `hash:gen:filename:type:size`.
+    fn find_metadata_blob_locates_hash_and_filename() {
+        // Per-doc blob index: schema, then `hash:type:filename:subfiles:size`.
         let blob = format!(
             "3\n\
-             {UUID_A}:80000000:0:0\n\
              eeeeeeee:0:{UUID_A}.content:0:50\n\
              ffffffff:0:{UUID_A}.metadata:0:120\n\
              99999999:0:{UUID_A}.pagedata:0:5\n"
         );
-        let hash = CloudClient::find_metadata_hash(&blob, UUID_A);
-        assert_eq!(hash.as_deref(), Some("ffffffff"));
+        let found = CloudClient::find_metadata_blob(&blob);
+        assert_eq!(
+            found,
+            Some(("ffffffff".to_string(), format!("{UUID_A}.metadata")))
+        );
     }
 
     #[test]
-    fn find_metadata_hash_returns_none_when_absent() {
-        let blob = format!("3\nroot\neeeeeeee:0:{UUID_A}.content:0:50\n");
-        assert_eq!(CloudClient::find_metadata_hash(&blob, UUID_A), None);
+    fn find_metadata_blob_returns_none_when_absent() {
+        let blob = format!("3\neeeeeeee:0:{UUID_A}.content:0:50\n");
+        assert_eq!(CloudClient::find_metadata_blob(&blob), None);
     }
 
     #[test]
