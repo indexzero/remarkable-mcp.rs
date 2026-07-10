@@ -11,3 +11,6 @@ ci = "github"
 installers = ["shell", "powershell"]
 # Target platforms to build apps for (Rust target-triple syntax)
 targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+# The release workflow's tag trigger is customized by hand (require a numeric,
+# unprefixed tag like `0.1.0`); tell dist not to check/regenerate it.
+allow-dirty = ["ci"]

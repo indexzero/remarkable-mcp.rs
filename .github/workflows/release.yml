@@ -42,7 +42,11 @@ on:
   pull_request:
   push:
     tags:
-      - '**[0-9]+.[0-9]+.[0-9]+*'
+      # Deliberate deviation from dist's default `**[0-9]+...`: dropping the leading
+      # `**` requires the tag to START with a digit, so version tags are unprefixed
+      # (`0.1.0`, not `v0.1.0`). This edit is preserved by `allow-dirty = ["ci"]` in
+      # dist-workspace.toml, so `dist generate` will not overwrite it.
+      - '[0-9]+.[0-9]+.[0-9]+*'
 
 jobs:
   # Run 'dist plan' (or host) to determine what tasks we need to do
