@@ -1,0 +1,36 @@
+[package]
+name = "remarkable-mcp"
+description = "An MCP server for the reMarkable cloud — browse, search, and organize your tablet from any MCP client."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+default-run = "remarkable-mcp"
+
+[[bin]]
+name = "remarkable-mcp"
+path = "src/main.rs"
+
+[dependencies]
+remarkable-core.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+chrono.workspace = true
+# rmcp 1.8.0 — official Rust MCP SDK. `server` provides the tool system, `macros`
+# the #[tool]/#[tool_router]/#[tool_handler] attributes, `transport-io` the
+# server-side stdio transport. Verified against the installed crate source.
+rmcp = { version = "1.8", features = ["server", "macros", "transport-io"] }
+# Must track rmcp's schemars major (1.0) so derived schemas match the tool macro.
+schemars = "1"
+clap = { version = "4", features = ["derive", "env"] }
+
+# Binary install metadata for cargo-binstall (rust-cli-aspects PACKAGING).
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }"
+pkg-fmt = "tgz"
