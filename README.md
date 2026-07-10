@@ -63,6 +63,18 @@ cargo build --release
 ./target/release/remarkable-mcp status
 ```
 
+By default the device registers under your platform's kind (`desktop-macos`, etc.),
+which the reMarkable web "devices" view shows as e.g. "Mac app". Since that's a
+**fixed enum**, it collides with the official reMarkable app for the same platform.
+To tell this MCP apart, register as a kind you don't otherwise use:
+
+```bash
+./target/release/remarkable-mcp auth <code> --device-desc desktop-windows
+```
+
+Precedence is `--device-desc` > `$REMARKABLE_DEVICE_DESC` > platform default. The
+kind you registered as is persisted and shown by `status`.
+
 ### Wire it into an MCP client
 
 `remarkable-mcp` with no arguments runs the server over stdio. Example Claude

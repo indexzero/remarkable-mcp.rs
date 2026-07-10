@@ -35,6 +35,13 @@ enum Command {
     Auth {
         /// The 8-character one-time code.
         code: String,
+        /// Device kind to register as (overrides the platform default and
+        /// $REMARKABLE_DEVICE_DESC). reMarkable's fixed set: desktop-windows,
+        /// desktop-macos, desktop-linux, mobile-android, mobile-ios,
+        /// browser-chrome, remarkable. Pick one you don't already use so this MCP
+        /// is distinguishable from the official apps in the reMarkable devices view.
+        #[arg(long, value_name = "KIND")]
+        device_desc: Option<String>,
     },
     /// Print authentication status and exit.
     Status,
@@ -54,12 +61,20 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let cli = Cli::parse();
-    let client = Arc::new(
-        CloudClient::new(ClientConfig::from_env()?).context("initializing reMarkable client")?,
-    );
+
+    // Precedence for the device descriptor: --device-desc flag > env > platform default.
+    let mut config = ClientConfig::from_env()?;
+    if let Some(Command::Auth {
+        device_desc: Some(kind),
+        ..
+    }) = &cli.command
+    {
+        config.device_desc = kind.clone();
+    }
+    let client = Arc::new(CloudClient::new(config).context("initializing reMarkable client")?);
 
     match cli.command.unwrap_or(Command::Mcp) {
-        Command::Auth { code } => run_auth(&client, &code).await,
+        Command::Auth { code, .. } => run_auth(&client, &code).await,
         Command::Status => run_status(&client).await,
         Command::Mcp => run_server(client).await,
     }
@@ -76,7 +91,7 @@ async fn run_auth(client: &CloudClient, code: &str) -> anyhow::Result<()> {
         .context("device registration failed")?;
     let status = client.auth_status().await;
     println!("✓ Registered. Device id: {}", status.device_id);
-    println!("  Device kind:      {}", client.device_desc());
+    println!("  Device kind:      {}", status.device_desc);
     println!("  Tokens stored at: {}", status.token_path);
     println!("  You can now run `remarkable-mcp` (no arguments) as an MCP server.");
     Ok(())
@@ -86,6 +101,7 @@ async fn run_status(client: &CloudClient) -> anyhow::Result<()> {
     let status = client.auth_status().await;
     println!("authenticated:        {}", status.authenticated);
     println!("device_id:            {}", status.device_id);
+    println!("device kind:          {}", status.device_desc);
     println!("valid user token:     {}", status.has_valid_user_token);
     if let Some(exp) = status.user_token_expires {
         println!("user token expires:   {exp}");

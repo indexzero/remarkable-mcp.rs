@@ -149,6 +149,9 @@ pub struct CloudClient {
 pub struct AuthStatus {
     pub authenticated: bool,
     pub device_id: String,
+    /// The device kind actually registered (falls back to the configured default
+    /// when not yet registered).
+    pub device_desc: String,
     pub has_valid_user_token: bool,
     pub user_token_expires: Option<chrono::DateTime<chrono::Utc>>,
     pub token_path: String,
@@ -197,9 +200,16 @@ impl CloudClient {
     /// Current authentication status.
     pub async fn auth_status(&self) -> AuthStatus {
         let inner = self.inner.lock().await;
+        let device_desc = if inner.tokens.device_desc.is_empty() {
+            // Not registered (or a pre-field token file): report what auth would use.
+            self.config.device_desc.clone()
+        } else {
+            inner.tokens.device_desc.clone()
+        };
         AuthStatus {
             authenticated: inner.tokens.is_registered(),
             device_id: inner.tokens.device_id.clone(),
+            device_desc,
             has_valid_user_token: inner.tokens.has_valid_user_token(chrono::Utc::now()),
             user_token_expires: inner.tokens.user_token_expires,
             token_path: self.config.token_path.display().to_string(),
@@ -257,6 +267,7 @@ impl CloudClient {
             let mut inner = self.inner.lock().await;
             inner.tokens.device_token = SecretToken::new(body.trim());
             inner.tokens.device_id = device_id;
+            inner.tokens.device_desc = device_desc.to_string();
             inner.cache = None;
         }
         self.refresh_user_token().await?;

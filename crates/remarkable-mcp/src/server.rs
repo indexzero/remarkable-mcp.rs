@@ -183,6 +183,7 @@ impl RemarkableServer {
         let mut payload = json!({
             "authenticated": status.authenticated,
             "device_id": status.device_id,
+            "device_desc": status.device_desc,
             "has_valid_user_token": status.has_valid_user_token,
             "user_token_expires": status.user_token_expires,
             "token_path": status.token_path,

@@ -74,6 +74,10 @@ pub struct TokenStore {
     /// The UUID generated for this device at registration time.
     #[serde(default)]
     pub device_id: String,
+    /// The device-kind descriptor this device registered as (for display; empty on
+    /// stores written before this field existed).
+    #[serde(default)]
+    pub device_desc: String,
     /// Short-lived user token used as the sync bearer.
     #[serde(default)]
     pub user_token: SecretToken,
@@ -92,6 +96,7 @@ impl Default for TokenStore {
             schema_version: SCHEMA_VERSION,
             device_token: SecretToken::default(),
             device_id: String::new(),
+            device_desc: String::new(),
             user_token: SecretToken::default(),
             user_token_expires: None,
         }
@@ -221,6 +226,7 @@ mod tests {
         let mut store = TokenStore::default();
         store.device_token = SecretToken::new("dev");
         store.device_id = "device-123".into();
+        store.device_desc = "browser-chrome".into();
         store.user_token = SecretToken::new("usr");
         store.user_token_expires = Some(chrono::Utc::now() + chrono::Duration::hours(1));
 
@@ -228,6 +234,7 @@ mod tests {
         let loaded = TokenStore::load(&path).unwrap();
         assert_eq!(loaded.device_token.expose(), "dev");
         assert_eq!(loaded.device_id, "device-123");
+        assert_eq!(loaded.device_desc, "browser-chrome");
         assert!(loaded.is_registered());
         assert!(loaded.has_valid_user_token(chrono::Utc::now()));
     }
