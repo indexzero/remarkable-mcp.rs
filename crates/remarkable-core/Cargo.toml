@@ -7,6 +7,10 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+homepage = "https://github.com/indexzero/remarkable-mcp.rs"
+readme = "README.md"
+keywords = ["remarkable", "cloud", "tablet", "sync"]
+categories = ["api-bindings"]
 
 [dependencies]
 tokio.workspace = true
