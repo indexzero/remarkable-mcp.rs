@@ -7,6 +7,10 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+homepage = "https://github.com/indexzero/remarkable-mcp.rs"
+readme = "README.md"
+keywords = ["remarkable", "mcp", "cli", "tablet"]
+categories = ["command-line-utilities"]
 default-run = "remarkable-mcp"
 
 [[bin]]

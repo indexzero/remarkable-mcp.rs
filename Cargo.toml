@@ -13,7 +13,7 @@ authors = ["indexzero"]
 # Shared dependency versions. Pinned to versions verified on crates.io 2026-06-25.
 # rmcp 1.8.0 is the official Rust MCP SDK (github.com/modelcontextprotocol/rust-sdk).
 [workspace.dependencies]
-remarkable-core = { path = "crates/remarkable-core" }
+remarkable-core = { path = "crates/remarkable-core", version = "0.1.0" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "signal", "sync", "time"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
