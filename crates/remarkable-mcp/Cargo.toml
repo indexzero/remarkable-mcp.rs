@@ -34,7 +34,6 @@ rmcp = { version = "1.8", features = ["server", "macros", "transport-io"] }
 schemars = "1"
 clap = { version = "4", features = ["derive", "env"] }
 
-# Binary install metadata for cargo-binstall (rust-cli-aspects PACKAGING).
-[package.metadata.binstall]
-pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }"
-pkg-fmt = "tgz"
+# Prebuilt-binary installs are handled by cargo-dist: it writes a `dist-manifest.json`
+# to each GitHub release, which `cargo binstall` reads automatically. No hand-written
+# `[package.metadata.binstall]` is needed (and a stale one would override that).
